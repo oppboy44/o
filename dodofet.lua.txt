@@ -206,7 +206,7 @@ local Active = false
 local RightClickHeld = false
 local FOV = 35
 local HitPart = "Closest" -- Options: "Head", "Torso", "HumanoidRootPart", "Left Arm", "Right Arm", "Left Leg", "Right Leg", "Closest"
-local TeamCheck = true -- Set to false to target teammates
+local TeamCheck = false -- Set to false to target teammates
 
 function CheckTeam(Player)
 	if not TeamCheck then
@@ -358,6 +358,7 @@ game:GetService("RunService").Stepped:connect(function()
        end
 	end
 end)
+
 
 
 
