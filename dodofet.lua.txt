@@ -1,1 +1,816 @@
+local IS_UNLOADED = false
 
+
+
+local CONFIG = {
+    
+    masterAimbot = true,           
+    aimKey = "MouseButton1",      
+    aimKeyHold = true,            
+    fovRadius = 40,               
+    aimbotSensitivity = 1,         
+    aimbotSmoothness = 1,         
+    showFOV = true,               
+    hitPart = "Head",             
+    aimbotMethod = "Mouse",       
+    
+    aimbotDead = true,            
+    aimbotTeamkill = false,        
+    aimbotForcefield = false,      
+    aimbotInvisible = false,       
+    aimbotVisible = false,        
+    aimbotSticky = false,         
+    aimbotIgnoreFOV = false,      
+    aimbotNoLock = false,          
+    
+    
+    deadZone = false,            
+    deadZoneFOV = 20,             
+    showDeadZone = true,          
+    
+    
+    cursorCalibrationKey = "F1",  
+    
+   
+    masterTriggerbot = false,     
+    triggerKey = "LeftAlt",        
+    triggerKeyHold = true,         
+    triggerbotDelay = 0,           
+    triggerbotDuration = 10,       
+    triggerbotTeamkill = false,    
+    triggerbotDead = false,        
+    triggerbotForcefield = false,  
+    triggerbotInvisible = true,   
+    
+   
+    masterESP = true,              
+    boxESP = true,                
+    healthESP = true,             
+    nameESP = true,               
+    teamESP = false,              
+}
+
+
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService   = game:GetService("UserInputService")
+local NetworkClient      = game:GetService("NetworkClient")
+local TweenService       = game:GetService("TweenService")
+local HttpService        = game:GetService("HttpService")
+local RunService         = game:GetService("RunService")
+local Workspace          = game:GetService("Workspace")
+local Players            = game:GetService("Players")
+
+local localPlayer = Players.LocalPlayer
+local mouse       = localPlayer:GetMouse()
+
+local functions = {
+    ["HttpGet"] = game.HttpGet,
+    ["FindFirstAncestor"] = game.FindFirstAncestor,
+    ["FindFirstAncestorOfClass"] = game.FindFirstAncestorOfClass,
+    ["FindFirstAncestorWhichIsA"] = game.FindFirstAncestorWhichIsA,
+    ["FindFirstChild"] = game.FindFirstChild,
+    ["FindFirstChildOfClass"] = game.FindFirstChildOfClass,
+    ["FindFirstChildWhichIsA"] = game.FindFirstChildWhichIsA,
+    ["FindFirstDescendant"] = game.FindFirstDescendant,
+    ["IsAncestorOf"] = game.IsAncestorOf,
+    ["IsDescendantOf"] = game.IsDescendantOf,
+    ["isA"] = game.IsA,
+    ["wrap"] = coroutine.wrap,
+    ["insert"] = table.insert,
+    ["remove"] = table.remove,
+    ["find"] = table.find,
+    ["GetMouseLocation"] = UserInputService.GetMouseLocation,
+    ["GetFocusedTextBox"] = UserInputService.GetFocusedTextBox,
+    ["IsKeyDown"] = UserInputService.IsKeyDown,
+    ["GetPlayers"] = Players.GetPlayers,
+    ["type"] = type,
+    ["tostring"] = tostring,
+    ["sfind"] = string.find,
+    ["sin"] = math.sin,
+    ["cos"] = math.cos,
+    ["rad"] = math.rad,
+    ["floor"] = math.floor,
+    ["abs"] = math.abs,
+    ["huge"] = math.huge,
+    ["clamp"] = math.clamp,
+    ["nRay"] = Ray.new,
+    ["nRayParams"] = RaycastParams.new,
+    ["nCFrame"] = CFrame.new,
+    ["nVector3"] = Vector3.new,
+    ["nVector2"] = Vector2.new,
+    ["nColor3"] = Color3.new,
+    ["nAngles"] = CFrame.Angles,
+    ["nRGB"] = Color3.fromRGB,
+    ["nHSV"] = Color3.fromHSV,
+    ["nInstance"] = Instance.new,
+    ["nDrawing"] = Drawing.new,
+    ["setmetatable"] = setmetatable,
+    ["next"] = next,
+    ["ipairs"] = ipairs,
+    ["wait"] = wait,
+    ["rawget"] = rawget,
+}
+
+local constants = {
+    ["9e9"]   = 9e9,
+    ["5000"]  = 5000,
+    ["1000"]  = 1000,
+    ["360"]   = 360,
+    ["320"]   = 320,
+    ["255"]   = 255,
+    ["252"]   = 252,
+    ["144"]   = 144,
+    ["95"]    = 95,
+    ["70"]    = 70,
+    ["20"]    = 20,
+    ["15"]    = 15,
+    ["13"]    = 13,
+    ["10"]    = 10,
+    ["8"]     = 8,
+    ["6"]     = 6,
+    ["5"]     = 5,
+    ["4"]     = 4,
+    ["2"]     = 2,
+    ["1"]     = 1,
+    [".75"]   = .75,
+    [".5"]    = .5,
+    [".3"]    = .3,
+    [".1"]    = .1,
+    ["0"]     = 0,
+    ["true"]  = true,
+    ["false"] = false,
+    ["nil"]   = nil,
+}
+
+local insert     = table.insert
+local remove     = table.remove
+local find       = table.find
+local nVector2   = Vector2.new
+local nRGB       = Color3.fromRGB
+local nDrawing   = Drawing.new
+
+local screenSize  = nVector2(Workspace.CurrentCamera.ViewportSize.X, Workspace.CurrentCamera.ViewportSize.Y)
+local screenCenter = nVector2(Workspace.CurrentCamera.ViewportSize.X / 2, Workspace.CurrentCamera.ViewportSize.Y / 2)
+
+
+local keyStates = {
+    aimKey = false,
+    triggerKey = false,
+    cursorCalibrationKey = false,
+}
+
+local framework = {
+    connections = {},
+    esp = {},
+    hiddenDrawings = {},
+}
+
+
+local function matchesKey(keyName, input)
+    if string.find(keyName, "Mouse") then
+        return input.UserInputType == Enum.UserInputType[keyName]
+    else
+        return input.KeyCode == Enum.KeyCode[keyName]
+    end
+end
+
+local function destroyConnection(name)
+    if framework.connections[name] then
+        framework.connections[name]:Disconnect()
+        framework.connections[name] = nil
+    end
+end
+
+local function createConnection(name, connection, callback)
+    if not framework.connections[name] then
+        framework.connections[name] = connection:Connect(callback)
+        return framework.connections[name]
+    end
+end
+
+local function unload()
+    IS_UNLOADED = true
+    for name, conn in pairs(framework.connections or {}) do
+        pcall(function() if conn.Disconnect then conn:Disconnect() end end)
+        framework.connections[name] = nil
+    end
+    for _, esp in pairs(framework.esp or {}) do
+        pcall(function() if type(esp.Destroy) == "function" then esp:Destroy() end end)
+    end
+    framework.esp = {}
+    local allDrawings = {}
+    for _, v in pairs(framework.hiddenDrawings or {}) do if v then insert(allDrawings, v) end end
+    if fovCircle and fovCircle.__OBJECT_EXISTS then insert(allDrawings, fovCircle) end
+    if deadZoneCircle and deadZoneCircle.__OBJECT_EXISTS then insert(allDrawings, deadZoneCircle) end
+    if client and client.offsetVisualizer and client.offsetVisualizer.__OBJECT_EXISTS then
+        insert(allDrawings, client.offsetVisualizer)
+    end
+    for _, drawing in ipairs(allDrawings) do
+        pcall(function() if drawing.__OBJECT_EXISTS then drawing:Remove() end end)
+    end
+    framework.hiddenDrawings = {}
+end
+
+local client = {
+    target = constants["nil"],
+    targetHitPart = constants["nil"],
+    offsetVisualizer = constants["nil"],
+    cursorOffset = functions["nVector2"](constants["0"], constants["0"]),
+}
+
+local fovCircle = nDrawing("Circle")
+fovCircle.Filled = constants["true"]
+fovCircle.Transparency = constants[".3"]
+fovCircle.Color = functions["nColor3"](constants["1"], constants["1"], constants["1"])
+insert(framework.hiddenDrawings, fovCircle)
+
+local deadZoneCircle = nDrawing("Circle")
+deadZoneCircle.Filled = constants["true"]
+deadZoneCircle.Transparency = constants[".1"]
+deadZoneCircle.Color = functions["nColor3"](constants["0"], constants["0"], constants["0"])
+insert(framework.hiddenDrawings, deadZoneCircle)
+
+function client.rotateYaw(CFRAME)
+    local x, y, z = CFRAME:ToOrientation()
+    return functions["nCFrame"](CFRAME.Position) * functions["nAngles"](constants["0"], y, constants["0"])
+end
+
+function client.floor(val)
+    return functions["nVector2"](functions["floor"](val.X), functions["floor"](val.Y))
+end
+
+function client.returnCamera()
+    return workspace.CurrentCamera
+end
+
+function client.returnBoundingBox(chr)
+    if functions["FindFirstChild"](chr, "HumanoidRootPart") then
+        local cf = chr.HumanoidRootPart.CFrame
+        local cameraCFrame = client.returnCamera().CFrame
+        local size = chr.HumanoidRootPart.Size + functions["nVector3"](constants["1"], 4, constants["1"])
+        local left, lvis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), cf.p + (cameraCFrame.RightVector * -size.z))
+        local right, rvis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), cf.p + (cameraCFrame.RightVector * size.z))
+        local top, tvis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), cf.p + (cameraCFrame.UpVector * size.y) / constants["2"])
+        local bottom, bvis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), cf.p + (cameraCFrame.UpVector * -size.y) / constants["2"])
+        if not lvis and not rvis and not tvis and not bvis then
+            return
+        end
+        local width = functions["floor"](functions["abs"](left.x - right.x))
+        local height = functions["floor"](functions["abs"](top.y - bottom.y))
+        local pos = client.returnCamera().WorldToViewportPoint(client.returnCamera(), cf.Position)
+        local size = functions["nVector2"](width, height)
+        size = client.floor(size)
+        return client.floor(functions["nVector2"](pos.x - (size.x / constants["2"]), pos.y - (size.y / constants["2"]))), size
+    end
+end
+
+function client.calculateTarget(method, hitPart)
+    local MaxDist, Target = functions["huge"]
+    local aimAt = hitPart
+    local TheirPos, Dist
+    if method == "Mouse" then
+        for _, V in pairs(functions["GetPlayers"](Players) or {}) do
+            if V ~= localPlayer then
+                if V.Team ~= localPlayer.Team or CONFIG.aimbotTeamkill then
+                    if V.Character then
+                        if functions["FindFirstChild"](V.Character, "Head") then
+                            if functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso") then
+                                local Torso = functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso")
+                                if (functions["FindFirstChildOfClass"](V.Character, "Humanoid") and functions["FindFirstChildOfClass"](V.Character, "Humanoid").Health > constants["0"] and CONFIG.aimbotDead) or not CONFIG.aimbotDead then
+                                    if (Torso.Transparency ~= constants["1"] and CONFIG.aimbotInvisible) or not CONFIG.aimbotInvisible then
+                                        if (not functions["FindFirstChildOfClass"](V.Character, "ForceField") and CONFIG.aimbotForcefield) or not CONFIG.aimbotForcefield then
+                                            if aimAt == "Closest" then
+                                                local mousePoint = functions["GetMouseLocation"](UserInputService)
+                                                local headPoint = client.returnCamera().WorldToViewportPoint(client.returnCamera(), V.Character.Head.Position)
+                                                local torsoPoint = client.returnCamera().WorldToViewportPoint(client.returnCamera(), Torso.Position)
+                                                local headMag = (functions["nVector2"](headPoint.X, headPoint.Y) - functions["nVector2"](mousePoint.X, mousePoint.Y)).Magnitude
+                                                local torsoMag = (functions["nVector2"](torsoPoint.X, torsoPoint.Y) - functions["nVector2"](mousePoint.X, mousePoint.Y)).Magnitude
+                                                aimAt = headMag < torsoMag and "Head" or functions["tostring"](Torso)
+                                            end
+                                            if aimAt == "Torso" then
+                                                if functions["tostring"](Torso) == "UpperTorso" then
+                                                    aimAt = "UpperTorso"
+                                                end
+                                            end
+                                            local Pos, Vis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), V.Character[aimAt].Position)
+                                            if Vis then
+                                                TheirPos = functions["nVector2"](Pos.X, Pos.Y)
+                                                Dist = (TheirPos - fovCircle.Position).Magnitude
+                                                if (Dist < CONFIG.fovRadius and not CONFIG.aimbotIgnoreFOV or CONFIG.aimbotIgnoreFOV) and (Dist > CONFIG.deadZoneFOV and CONFIG.deadZone or not CONFIG.deadZone) then
+                                                    if not localPlayer.Character then
+                                                        break
+                                                    end
+                                                    if not functions["FindFirstChild"](localPlayer.Character, "Head") then
+                                                        break
+                                                    end
+                                                    local Params = functions["nRayParams"]({FilterDescendantsInstances = {client.returnCamera(), localPlayer.Character}, FilterType = Enum.RaycastFilterType.Blacklist, IgnoreWater = constants["true"]})
+                                                    local Result = Workspace.Raycast(Workspace, localPlayer.Character.Head.Position, (V.Character[aimAt].Position - localPlayer.Character.Head.Position).unit * constants["5000"], Params)
+                                                    if (Result and Result.Instance and functions["IsDescendantOf"](Result.Instance, V.Character) and CONFIG.aimbotVisible) or not CONFIG.aimbotVisible then
+                                                        if Dist < MaxDist then
+                                                            MaxDist = Dist
+                                                            Target = V
+                                                        end
+                                                    end
+                                                end
+                                            end
+                                        end
+                                        if CONFIG.masterAimbot and keyStates.aimKey and ((not client.isMouseButtonDown(Enum.UserInputType.MouseButton2) and CONFIG.aimbotNoLock) or not CONFIG.aimbotNoLock) then
+                                            client.target = Target
+                                            client.targetHitPart = aimAt
+                                        else
+                                            client.target = constants["nil"]
+                                            client.targetHitPart = constants["nil"]
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if method == "Distance" then
+        for _, V in pairs(functions["GetPlayers"](Players) or {}) do
+            if V ~= localPlayer then
+                if V.Team ~= localPlayer.Team or CONFIG.aimbotTeamkill then
+                    if V.Character then
+                        if functions["FindFirstChild"](V.Character, "Head") then
+                            if functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso") then
+                                local Torso = functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso")
+                                if (functions["FindFirstChildOfClass"](V.Character, "Humanoid") and functions["FindFirstChildOfClass"](V.Character, "Humanoid").Health > constants["0"] and CONFIG.aimbotDead) or not CONFIG.aimbotDead then
+                                    if (Torso.Transparency ~= constants["1"] and CONFIG.aimbotInvisible) or not CONFIG.aimbotInvisible then
+                                        if (not functions["FindFirstChildOfClass"](V.Character, "ForceField") and CONFIG.aimbotForcefield) or not CONFIG.aimbotForcefield then
+                                            if aimAt == "Closest" then
+                                                local mousePoint = functions["GetMouseLocation"](UserInputService)
+                                                local headPoint = client.returnCamera().WorldToViewportPoint(client.returnCamera(), V.Character.Head.Position)
+                                                local torsoPoint = client.returnCamera().WorldToViewportPoint(client.returnCamera(), Torso.Position)
+                                                local headMag = (functions["nVector2"](headPoint.X, headPoint.Y) - functions["nVector2"](mousePoint.X, mousePoint.Y)).Magnitude
+                                                local torsoMag = (functions["nVector2"](torsoPoint.X, torsoPoint.Y) - functions["nVector2"](mousePoint.X, mousePoint.Y)).Magnitude
+                                                aimAt = headMag < torsoMag and "Head" or functions["tostring"](Torso)
+                                            end
+                                            if aimAt == "Torso" then
+                                                if functions["tostring"](Torso) == "UpperTorso" then
+                                                    aimAt = "UpperTorso"
+                                                end
+                                            end
+                                            local Pos, Vis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), V.Character[aimAt].Position)
+                                            if Vis then
+                                                TheirPos = functions["nVector2"](Pos.X, Pos.Y)
+                                                Dist = localPlayer:DistanceFromCharacter(V.Character[aimAt].Position)
+                                                local Mag = (TheirPos - fovCircle.Position).Magnitude
+                                                if (Mag < CONFIG.fovRadius and not CONFIG.aimbotIgnoreFOV or CONFIG.aimbotIgnoreFOV) and (Mag > CONFIG.deadZoneFOV and CONFIG.deadZone or not CONFIG.deadZone) then
+                                                    if not localPlayer.Character then
+                                                        break
+                                                    end
+                                                    if not functions["FindFirstChild"](localPlayer.Character, "Head") then
+                                                        break
+                                                    end
+                                                    local Params = functions["nRayParams"]({FilterDescendantsInstances = {client.returnCamera(), localPlayer.Character}, FilterType = Enum.RaycastFilterType.Blacklist, IgnoreWater = constants["true"]})
+                                                    local Result = Workspace.Raycast(Workspace, localPlayer.Character.Head.Position, (V.Character[aimAt].Position - localPlayer.Character.Head.Position).unit * constants["5000"], Params)
+                                                    if (Result and Result.Instance and functions["IsDescendantOf"](Result.Instance, V.Character) and CONFIG.aimbotVisible) or not CONFIG.aimbotVisible then
+                                                        if Dist < MaxDist then
+                                                            MaxDist = Dist
+                                                            Target = V
+                                                        end
+                                                    end
+                                                end
+                                            end
+                                        end
+                                        if CONFIG.masterAimbot and keyStates.aimKey and ((not client.isMouseButtonDown(Enum.UserInputType.MouseButton2) and CONFIG.aimbotNoLock) or not CONFIG.aimbotNoLock) then
+                                            client.target = Target
+                                            client.targetHitPart = aimAt
+                                        else
+                                            client.target = constants["nil"]
+                                            client.targetHitPart = constants["nil"]
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if method == "Health" then
+        for _, V in pairs(functions["GetPlayers"](Players) or {}) do
+            if V ~= localPlayer then
+                if V.Team ~= localPlayer.Team or CONFIG.aimbotTeamkill then
+                    if V.Character then
+                        if functions["FindFirstChild"](V.Character, "Head") then
+                            if functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso") then
+                                local Torso = functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso")
+                                if (functions["FindFirstChildOfClass"](V.Character, "Humanoid") and functions["FindFirstChildOfClass"](V.Character, "Humanoid").Health > constants["0"] and CONFIG.aimbotDead) or not CONFIG.aimbotDead then
+                                    if (Torso.Transparency ~= constants["1"] and CONFIG.aimbotInvisible) or not CONFIG.aimbotInvisible then
+                                        if (not functions["FindFirstChildOfClass"](V.Character, "ForceField") and CONFIG.aimbotForcefield) or not CONFIG.aimbotForcefield then
+                                            if aimAt == "Closest" then
+                                                local mousePoint = functions["GetMouseLocation"](UserInputService)
+                                                local headPoint = client.returnCamera().WorldToViewportPoint(client.returnCamera(), V.Character.Head.Position)
+                                                local torsoPoint = client.returnCamera().WorldToViewportPoint(client.returnCamera(), Torso.Position)
+                                                local headMag = (functions["nVector2"](headPoint.X, headPoint.Y) - functions["nVector2"](mousePoint.X, mousePoint.Y)).Magnitude
+                                                local torsoMag = (functions["nVector2"](torsoPoint.X, torsoPoint.Y) - functions["nVector2"](mousePoint.X, mousePoint.Y)).Magnitude
+                                                aimAt = headMag < torsoMag and "Head" or functions["tostring"](Torso)
+                                            end
+                                            if aimAt == "Torso" then
+                                                if functions["tostring"](Torso) == "UpperTorso" then
+                                                    aimAt = "UpperTorso"
+                                                end
+                                            end
+                                            local Pos, Vis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), V.Character[aimAt].Position)
+                                            if Vis then
+                                                TheirPos = functions["nVector2"](Pos.X, Pos.Y)
+                                                Dist = functions["FindFirstChildOfClass"](V.Character, "Humanoid").Health
+                                                local Mag = (TheirPos - fovCircle.Position).Magnitude
+                                                if (Mag < CONFIG.fovRadius and not CONFIG.aimbotIgnoreFOV or CONFIG.aimbotIgnoreFOV) and (Mag > CONFIG.deadZoneFOV and CONFIG.deadZone or not CONFIG.deadZone) then
+                                                    if not localPlayer.Character then
+                                                        break
+                                                    end
+                                                    if not functions["FindFirstChild"](localPlayer.Character, "Head") then
+                                                        break
+                                                    end
+                                                    local Params = functions["nRayParams"]({FilterDescendantsInstances = {client.returnCamera(), localPlayer.Character}, FilterType = Enum.RaycastFilterType.Blacklist, IgnoreWater = constants["true"]})
+                                                    local Result = Workspace.Raycast(Workspace, localPlayer.Character.Head.Position, (V.Character[aimAt].Position - localPlayer.Character.Head.Position).unit * constants["5000"], Params)
+                                                    if (Result and Result.Instance and functions["IsDescendantOf"](Result.Instance, V.Character) and CONFIG.aimbotVisible) or not CONFIG.aimbotVisible then
+                                                        if Dist < MaxDist then
+                                                            MaxDist = Dist
+                                                            Target = V
+                                                        end
+                                                    end
+                                                end
+                                            end
+                                        end
+                                        if CONFIG.masterAimbot and keyStates.aimKey and ((not client.isMouseButtonDown(Enum.UserInputType.MouseButton2) and CONFIG.aimbotNoLock) or not CONFIG.aimbotNoLock) then
+                                            client.target = Target
+                                            client.targetHitPart = aimAt
+                                        else
+                                            client.target = constants["nil"]
+                                            client.targetHitPart = constants["nil"]
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function client.isMouseButtonDown(inputType)
+    for _, button in pairs(UserInputService:GetMouseButtonsPressed()) do
+        if button.UserInputType == inputType then
+            return constants["true"]
+        end
+    end
+    return constants["false"]
+end
+
+function client.drawPlayerESP(requestedPlayer)
+    local ESP = {name = requestedPlayer.Name, drawings = {}}
+    local theme = {font = Drawing.Fonts.Plex, fontSize = 13}
+    
+    ESP.drawings.inline = nDrawing("Square")
+    ESP.drawings.inline.Transparency = constants["1"]
+    ESP.drawings.inline.Thickness = constants["1"]
+    ESP.drawings.inline.Color = functions["nRGB"](constants["0"], constants["0"], constants["0"])
+    insert(framework.hiddenDrawings, ESP.drawings.inline)
+    
+    ESP.drawings.box = nDrawing("Square")
+    ESP.drawings.box.Transparency = constants["1"]
+    ESP.drawings.box.Thickness = constants["1"]
+    ESP.drawings.box.Color = functions["nRGB"](constants["255"], constants["255"], constants["255"])
+    insert(framework.hiddenDrawings, ESP.drawings.box)
+    
+    ESP.drawings.outline = nDrawing("Square")
+    ESP.drawings.outline.Transparency = constants["1"]
+    ESP.drawings.outline.Thickness = constants["1"]
+    ESP.drawings.outline.Color = functions["nRGB"](constants["0"], constants["0"], constants["0"])
+    insert(framework.hiddenDrawings, ESP.drawings.outline)
+    
+    ESP.drawings.healthBar = nDrawing("Square")
+    ESP.drawings.healthBar.Transparency = constants["1"]
+    ESP.drawings.healthBar.Thickness = constants["1"]
+    ESP.drawings.healthBar.Filled = constants["true"]
+    ESP.drawings.healthBar.Color = functions["nRGB"](constants["0"], constants["0"], constants["0"])
+    insert(framework.hiddenDrawings, ESP.drawings.healthBar)
+    
+    ESP.drawings.healthBarColor = nDrawing("Square")
+    ESP.drawings.healthBarColor.Transparency = constants["1"]
+    ESP.drawings.healthBarColor.Thickness = constants["1"]
+    ESP.drawings.healthBarColor.Filled = constants["true"]
+    ESP.drawings.healthBarColor.Color = functions["nRGB"](constants["0"], constants["255"], constants["0"])
+    insert(framework.hiddenDrawings, ESP.drawings.healthBarColor)
+    
+    ESP.drawings.nameShadow = nDrawing("Text")
+    ESP.drawings.nameShadow.Transparency = constants["1"]
+    ESP.drawings.nameShadow.Color = functions["nColor3"](constants["0"], constants["0"], constants["0"])
+    ESP.drawings.nameShadow.Text = ESP.name
+    ESP.drawings.nameShadow.Center = constants["true"]
+    ESP.drawings.nameShadow.Font = theme.font
+    ESP.drawings.nameShadow.Size = theme.fontSize
+    insert(framework.hiddenDrawings, ESP.drawings.nameShadow)
+    
+    ESP.drawings.name = nDrawing("Text")
+    ESP.drawings.name.Transparency = constants["1"]
+    ESP.drawings.name.Color = functions["nColor3"](constants["255"], constants["255"], constants["255"])
+    ESP.drawings.name.Text = ESP.name
+    ESP.drawings.name.Center = constants["true"]
+    ESP.drawings.name.Font = theme.font
+    ESP.drawings.name.Size = theme.fontSize
+    insert(framework.hiddenDrawings, ESP.drawings.name)
+    
+    ESP.drawings.healthTextShadow = nDrawing("Text")
+    ESP.drawings.healthTextShadow.Transparency = constants["1"]
+    ESP.drawings.healthTextShadow.Color = functions["nColor3"](constants["0"], constants["0"], constants["0"])
+    ESP.drawings.healthTextShadow.Text = ESP.name
+    ESP.drawings.healthTextShadow.Center = constants["true"]
+    ESP.drawings.healthTextShadow.Font = theme.font
+    ESP.drawings.healthTextShadow.Size = theme.fontSize
+    insert(framework.hiddenDrawings, ESP.drawings.healthTextShadow)
+    
+    ESP.drawings.healthText = nDrawing("Text")
+    ESP.drawings.healthText.Transparency = constants["1"]
+    ESP.drawings.healthText.Color = functions["nColor3"](constants["255"], constants["255"], constants["255"])
+    ESP.drawings.healthText.Text = ESP.name
+    ESP.drawings.healthText.Center = constants["true"]
+    ESP.drawings.healthText.Font = theme.font
+    ESP.drawings.healthText.Size = theme.fontSize
+    insert(framework.hiddenDrawings, ESP.drawings.healthText)
+    
+    function ESP.Destroy()
+        ESP.Stepped:Disconnect()
+        for _, v in pairs(ESP.drawings or {}) do
+            if v and v.__OBJECT_EXISTS then
+                v:Remove()
+            end
+        end
+    end
+    
+    ESP.Stepped = RunService.RenderStepped:Connect(function()
+        if IS_UNLOADED then return end
+        if not requestedPlayer then
+            ESP.Destroy()
+            return
+        end
+        if not (requestedPlayer.Character and functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid") and functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").Health > constants["0"]) then
+            for _, v in pairs(ESP.drawings or {}) do
+                if v and v.__OBJECT_EXISTS then
+                    v.Visible = constants["false"]
+                end
+            end
+            return
+        end
+        local pos, size = client.returnBoundingBox(requestedPlayer.Character)
+        if pos then
+            local boxvis = size.x + size.y > constants["8"]
+            if ESP.drawings.name and ESP.drawings.name.__OBJECT_EXISTS and ESP.drawings.nameShadow and ESP.drawings.nameShadow.__OBJECT_EXISTS and ESP.drawings.box and ESP.drawings.box.__OBJECT_EXISTS and ESP.drawings.outline and ESP.drawings.outline.__OBJECT_EXISTS and ESP.drawings.inline and ESP.drawings.inline.__OBJECT_EXISTS and ESP.drawings.healthBar and ESP.drawings.healthBar.__OBJECT_EXISTS and ESP.drawings.healthBarColor and ESP.drawings.healthBarColor.__OBJECT_EXISTS and ESP.drawings.healthTextShadow and ESP.drawings.healthTextShadow.__OBJECT_EXISTS and ESP.drawings.healthText and ESP.drawings.healthText.__OBJECT_EXISTS then
+                ESP.drawings.name.Visible = (CONFIG.masterESP and CONFIG.nameESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.nameShadow.Visible = (CONFIG.masterESP and CONFIG.nameESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.box.Visible = boxvis and (CONFIG.masterESP and CONFIG.boxESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.outline.Visible = boxvis and (CONFIG.masterESP and CONFIG.boxESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.inline.Visible = boxvis and (CONFIG.masterESP and CONFIG.boxESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.healthBar.Visible = boxvis and (CONFIG.masterESP and CONFIG.healthESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.healthBarColor.Visible = boxvis and (CONFIG.masterESP and CONFIG.healthESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.healthTextShadow.Visible = boxvis and functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").Health < functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").MaxHealth and (CONFIG.masterESP and CONFIG.healthESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.healthText.Visible = boxvis and functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").Health < functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").MaxHealth and (CONFIG.masterESP and CONFIG.healthESP) and (CONFIG.teamESP and requestedPlayer.Team ~= localPlayer.Team or not CONFIG.teamESP)
+                ESP.drawings.box.Size = size
+                ESP.drawings.box.Position = pos
+                ESP.drawings.outline.Size = size + functions["nVector2"](constants["2"], constants["2"])
+                ESP.drawings.outline.Position = pos - functions["nVector2"](constants["1"], constants["1"])
+                ESP.drawings.inline.Size = size - functions["nVector2"](constants["2"], constants["2"])
+                ESP.drawings.inline.Position = pos + functions["nVector2"](constants["1"], constants["1"])
+                ESP.drawings.name.Position = pos + functions["nVector2"](size.x / constants["2"], -constants["20"])
+                ESP.drawings.nameShadow.Position = ESP.drawings.name.Position + functions["nVector2"](constants["1"], constants["1"])
+                ESP.drawings.box.Color = client.target == requestedPlayer and functions["nRGB"](constants["255"], constants["0"], constants["0"]) or functions["nRGB"](constants["255"], constants["255"], constants["255"])
+                ESP.drawings.name.Color = client.target == requestedPlayer and functions["nRGB"](constants["255"], constants["0"], constants["0"]) or functions["nRGB"](constants["255"], constants["255"], constants["255"])
+                ESP.drawings.healthText.Color = client.target == requestedPlayer and functions["nRGB"](constants["255"], constants["0"], constants["0"]) or functions["nRGB"](constants["255"], constants["255"], constants["255"])
+                ESP.drawings.healthBar.Size = functions["nVector2"](constants["4"], size.y + constants["2"])
+                ESP.drawings.healthBar.Position = functions["nVector2"](ESP.drawings.box.Position.x - constants["6"], ESP.drawings.outline.Position.y)
+                ESP.drawings.healthBarColor.Size = functions["nVector2"](ESP.drawings.healthBar.Size.x - constants["2"], (ESP.drawings.healthBar.Size.y - constants["2"]) * (requestedPlayer.Character:FindFirstChildOfClass("Humanoid").Health / requestedPlayer.Character:FindFirstChildOfClass("Humanoid").MaxHealth))
+                ESP.drawings.healthBarColor.Position = (ESP.drawings.healthBar.Position + functions["nVector2"](constants["1"], ESP.drawings.healthBar.Size.y - constants["1"])) - functions["nVector2"](constants["0"], ESP.drawings.healthBarColor.Size.y)
+                if ESP.drawings.healthText.Visible then
+                    ESP.drawings.healthText.Position = ESP.drawings.healthBarColor.Position - functions["nVector2"](constants["0"], ESP.drawings.healthText.Size / constants["2"])
+                    ESP.drawings.healthText.Text = functions["tostring"](functions["floor"](functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").Health))
+                    ESP.drawings.healthTextShadow.Position = ESP.drawings.healthText.Position + functions["nVector2"](constants["1"], constants["1"])
+                    ESP.drawings.healthTextShadow.Text = functions["tostring"](functions["floor"](functions["FindFirstChildOfClass"](requestedPlayer.Character, "Humanoid").Health))
+                end
+            end
+        else
+            for _, v in pairs(ESP.drawings or {}) do
+                if v and v.__OBJECT_EXISTS then
+                    v.Visible = constants["false"]
+                end
+            end
+        end
+    end)
+    framework.esp[ESP.name] = ESP
+end
+
+
+createConnection("InputBegan", UserInputService.InputBegan, function(Input)
+    if IS_UNLOADED then return end
+    
+   
+    if Input.KeyCode == Enum.KeyCode.End then
+        unload()
+        return
+    end
+    
+    
+    if matchesKey(CONFIG.aimKey, Input) then
+        if CONFIG.aimKeyHold then
+            keyStates.aimKey = true
+            if CONFIG.aimbotSticky then
+                coroutine.wrap(function()
+                    repeat
+                        client.calculateTarget(CONFIG.aimbotMethod, CONFIG.hitPart)
+                        RunService.Heartbeat:Wait()
+                    until client.target or not keyStates.aimKey
+                end)()
+            end
+        else
+            keyStates.aimKey = not keyStates.aimKey
+        end
+    end
+    
+    
+    if matchesKey(CONFIG.triggerKey, Input) then
+        if CONFIG.triggerKeyHold then
+            keyStates.triggerKey = true
+        else
+            keyStates.triggerKey = not keyStates.triggerKey
+        end
+    end
+    
+    
+    if matchesKey(CONFIG.cursorCalibrationKey, Input) then
+        keyStates.cursorCalibrationKey = true
+        if not client.offsetVisualizer or not client.offsetVisualizer.__OBJECT_EXISTS then
+            client.offsetVisualizer = nDrawing("Circle")
+            client.offsetVisualizer.Transparency = constants[".5"]
+            client.offsetVisualizer.Radius = constants["10"]
+            client.offsetVisualizer.Color = functions["nRGB"](constants["255"], constants["0"], constants["0"])
+            client.offsetVisualizer.Filled = constants["true"]
+            client.offsetVisualizer.Visible = constants["true"]
+            client.offsetVisualizer.Position = screenCenter
+        end
+        if client.offsetVisualizer and client.offsetVisualizer.__OBJECT_EXISTS then
+            client.offsetVisualizer.Visible = constants["true"]
+        end
+    end
+end)
+
+createConnection("InputEnded", UserInputService.InputEnded, function(Input)
+    if IS_UNLOADED then return end
+    
+   
+    if matchesKey(CONFIG.aimKey, Input) then
+        if CONFIG.aimKeyHold then
+            keyStates.aimKey = false
+            client.target = constants["nil"]
+            client.targetHitPart = constants["nil"]
+        end
+    end
+    
+    
+    if matchesKey(CONFIG.triggerKey, Input) then
+        if CONFIG.triggerKeyHold then
+            keyStates.triggerKey = false
+        end
+    end
+    
+    
+    if matchesKey(CONFIG.cursorCalibrationKey, Input) then
+        keyStates.cursorCalibrationKey = false
+        if client.offsetVisualizer and client.offsetVisualizer.__OBJECT_EXISTS then
+            local mousePosition = functions["GetMouseLocation"](UserInputService)
+            client.cursorOffset = functions["nVector2"](screenCenter.X - mousePosition.X, screenCenter.Y - mousePosition.Y)
+            client.offsetVisualizer.Visible = false
+        end
+    end
+end)
+
+
+createConnection("aimbotStepped", RunService.Heartbeat, function()
+    if IS_UNLOADED then return end
+    local mousePosition = functions["GetMouseLocation"](UserInputService)
+    fovCircle.Radius = CONFIG.fovRadius
+    fovCircle.Visible = CONFIG.showFOV
+    fovCircle.Position = mousePosition + client.cursorOffset
+    deadZoneCircle.Radius = CONFIG.deadZoneFOV
+    deadZoneCircle.Visible = CONFIG.showDeadZone and CONFIG.deadZone
+    deadZoneCircle.Position = mousePosition + client.cursorOffset
+    
+    if CONFIG.aimbotSticky and client.target and client.targetHitPart and client.target.Character then
+        if client.target == localPlayer then
+            return
+        end
+        if client.target.TeamColor == localPlayer.TeamColor and not CONFIG.aimbotTeamkill then
+            return
+        end
+        if not functions["FindFirstChild"](client.target.Character, "Head") then
+            return
+        end
+        if not functions["FindFirstChild"](client.target.Character, "Torso") and not functions["FindFirstChild"](client.target.Character, "UpperTorso") then
+            return
+        end
+        local Torso = functions["FindFirstChild"](client.target.Character, "Torso") or functions["FindFirstChild"](client.target.Character, "UpperTorso")
+        if Torso.Transparency == constants["1"] and CONFIG.aimbotInvisible then
+            return
+        end
+        if functions["FindFirstChildOfClass"](client.target.Character, "Humanoid") and functions["FindFirstChildOfClass"](client.target.Character, "Humanoid").Health <= constants["0"] and CONFIG.aimbotDead then
+            return
+        end
+        if functions["FindFirstChildOfClass"](client.target.Character, "ForceField") and CONFIG.aimbotForcefield then
+            return
+        end
+        local Pos, Vis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), client.target.Character[client.targetHitPart].Position)
+        if not Vis then
+            return
+        end
+        if not localPlayer.Character then
+            return
+        end
+        if not functions["FindFirstChild"](localPlayer.Character, "Head") then
+            return
+        end
+        if client.isMouseButtonDown(Enum.UserInputType.MouseButton2) and CONFIG.aimbotNoLock then
+            return
+        end
+        local Params = functions["nRayParams"]({FilterDescendantsInstances = {client.returnCamera(), localPlayer.Character}, FilterType = Enum.RaycastFilterType.Blacklist, IgnoreWater = constants["true"]})
+        local Result = Workspace.Raycast(Workspace, localPlayer.Character.Head.Position, (client.target.Character[client.targetHitPart].Position - localPlayer.Character.Head.Position).unit * constants["5000"], Params)
+        if (not Result.Instance or not functions["IsDescendantOf"](Result.Instance, client.target.Character)) and CONFIG.aimbotVisible then
+            return
+        end
+        local TheirPos = functions["nVector2"](Pos.X, Pos.Y)
+        local Mag = (TheirPos - fovCircle.Position).Magnitude
+        if (Mag <= CONFIG.fovRadius and not CONFIG.aimbotIgnoreFOV or CONFIG.aimbotIgnoreFOV) then
+            if (Mag >= CONFIG.deadZoneFOV and CONFIG.deadZone or not CONFIG.deadZone) then
+                mousemoverel(((Pos.X - fovCircle.Position.X) * CONFIG.aimbotSensitivity) / CONFIG.aimbotSmoothness, ((Pos.Y - fovCircle.Position.Y) * CONFIG.aimbotSensitivity) / CONFIG.aimbotSmoothness)
+            end
+        end
+    else
+        client.calculateTarget(CONFIG.aimbotMethod, CONFIG.hitPart)
+        if client.target then
+            local Pos, Vis = client.returnCamera().WorldToViewportPoint(client.returnCamera(), client.target.Character[client.targetHitPart].Position)
+            mousemoverel(((Pos.X - fovCircle.Position.X) * CONFIG.aimbotSensitivity) / CONFIG.aimbotSmoothness, ((Pos.Y - fovCircle.Position.Y) * CONFIG.aimbotSensitivity) / CONFIG.aimbotSmoothness)
+        end
+    end
+end)
+
+
+createConnection("triggerbotStepped", RunService.Heartbeat, function()
+    if IS_UNLOADED then return end
+    if CONFIG.masterTriggerbot and keyStates.triggerKey then
+        local unitRay = client.returnCamera().ViewportPointToRay(client.returnCamera(), fovCircle.Position.X, fovCircle.Position.Y)
+        local Params = functions["nRayParams"]({FilterDescendantsInstances = {client.returnCamera(), localPlayer.Character}, FilterType = Enum.RaycastFilterType.Blacklist, IgnoreWater = constants["true"]})
+        local Result = Workspace.Raycast(Workspace, unitRay.Origin, unitRay.Direction * constants["5000"], Params)
+        if Result then
+            for _, V in pairs(functions["GetPlayers"](Players) or {}) do
+                if V == localPlayer then continue end
+                if V.Team == localPlayer.Team and not CONFIG.triggerbotTeamkill then continue end
+                if not V.Character then continue end
+                if functions["FindFirstChildOfClass"](V.Character, "Humanoid") and functions["FindFirstChildOfClass"](V.Character, "Humanoid").Health <= constants["0"] and CONFIG.triggerbotDead then continue end
+                if not functions["FindFirstChild"](V.Character, "Torso") and not functions["FindFirstChild"](V.Character, "UpperTorso") then continue end
+                local Torso = functions["FindFirstChild"](V.Character, "Torso") or functions["FindFirstChild"](V.Character, "UpperTorso")
+                if Torso.Transparency == constants["1"] and CONFIG.triggerbotInvisible then continue end
+                if functions["FindFirstChildOfClass"](V.Character, "ForceField") and CONFIG.triggerbotForcefield then continue end
+                if functions["IsDescendantOf"](Result.Instance, V.Character) then
+                    if CONFIG.triggerbotDelay > constants["0"] then
+                        functions["wait"](CONFIG.triggerbotDelay / constants["1000"])
+                    end
+                    mouse1press()
+                    wait(CONFIG.triggerbotDuration / 1000)
+                    mouse1release()
+                end
+            end
+        end
+    end
+end)
+
+
+for _, v in pairs(functions["GetPlayers"](Players) or {}) do
+    if v and v ~= localPlayer then
+        client.drawPlayerESP(v)
+    end
+end
+
+
+createConnection("PlayerAdded", Players.PlayerAdded, function(Player)
+    if Player and Player ~= localPlayer then
+        client.drawPlayerESP(Player)
+    end
+end)
+
+
+createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
+    if framework.esp[Player.Name] then
+        pcall(function()
+            framework.esp[Player.Name].Destroy()
+        end)
+        framework.esp[Player.Name] = nil
+    end
+end)
