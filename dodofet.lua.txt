@@ -18,7 +18,7 @@ local CONFIG = {
     aimbotTeamkill = false,        
     aimbotForcefield = true,      
     aimbotInvisible = true,       
-    aimbotVisible = true,        
+    aimbotVisible = false,        
     aimbotSticky = false,         
     aimbotIgnoreFOV = false,      
     aimbotNoLock = true,          
@@ -814,3 +814,4 @@ createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
         framework.esp[Player.Name] = nil
     end
 end)
+
