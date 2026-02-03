@@ -21,7 +21,7 @@ local CONFIG = {
     
     
     deadZone = false,            
-    deadZoneFOV = 20,             
+    deadZoneFOV = 0,             
     showDeadZone = true,          
     
     
@@ -810,6 +810,7 @@ createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
         framework.esp[Player.Name] = nil
     end
 end)
+
 
 
 
