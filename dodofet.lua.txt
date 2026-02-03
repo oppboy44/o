@@ -4,8 +4,8 @@ local CONFIG = {
     aimKey = "MouseButton1",      
     aimKeyHold = true,            
     fovRadius = 30,               
-    aimbotSensitivity = 0.8,         
-    aimbotSmoothness = 10,         
+    aimbotSensitivity = 1,         
+    aimbotSmoothness = 15,         
     showFOV = false,               
     hitPart = "Closest",             
     aimbotMethod = "Mouse",       
@@ -29,7 +29,7 @@ local CONFIG = {
     
    
     masterTriggerbot = false,     
-    triggerKey = "P",        
+    triggerKey = "LeftAlt",        
     triggerKeyHold = true,         
     triggerbotDelay = 0,           
     triggerbotDuration = 10,       
@@ -810,4 +810,5 @@ createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
         framework.esp[Player.Name] = nil
     end
 end)
+
 
