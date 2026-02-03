@@ -4,14 +4,14 @@ local IS_UNLOADED = false
 
 local CONFIG = {
     
-    masterAimbot = false,           
+    masterAimbot = true,           
     aimKey = "MouseButton1",      
     aimKeyHold = true,            
-    fovRadius = 30,               
-    aimbotSensitivity = 1,         
-    aimbotSmoothness = 1,         
+    fovRadius = 80,               
+    aimbotSensitivity = 0.6,         
+    aimbotSmoothness = 9,         
     showFOV = false,               
-    hitPart = "closest",             
+    hitPart = "Closest",             
     aimbotMethod = "Mouse",       
     
     aimbotDead = true,            
@@ -26,28 +26,28 @@ local CONFIG = {
     
     deadZone = false,            
     deadZoneFOV = 20,             
-    showDeadZone = false,          
+    showDeadZone = true,          
     
     
     cursorCalibrationKey = "F1",  
     
    
-    masterTriggerbot = false,     
+    masterTriggerbot = true,     
     triggerKey = "LeftAlt",        
     triggerKeyHold = true,         
     triggerbotDelay = 0,           
     triggerbotDuration = 10,       
-    triggerbotTeamkill = false,    
-    triggerbotDead = false,        
-    triggerbotForcefield = false,  
+    triggerbotTeamkill = true,    
+    triggerbotDead = true,        
+    triggerbotForcefield = true,  
     triggerbotInvisible = true,   
     
    
     masterESP = true,              
     boxESP = true,                
-    healthESP = false,             
+    healthESP = true,             
     nameESP = false,               
-    teamESP = true,              
+    teamESP = false,              
 }
 
 
@@ -814,5 +814,3 @@ createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
         framework.esp[Player.Name] = nil
     end
 end)
-
-
