@@ -7,9 +7,9 @@ local CONFIG = {
     masterAimbot = true,           
     aimKey = "MouseButton1",      
     aimKeyHold = true,            
-    fovRadius = 80,               
-    aimbotSensitivity = 0.6,         
-    aimbotSmoothness = 9,         
+    fovRadius = 30,               
+    aimbotSensitivity = 0.8,         
+    aimbotSmoothness = 12,         
     showFOV = false,               
     hitPart = "Closest",             
     aimbotMethod = "Mouse",       
@@ -45,9 +45,9 @@ local CONFIG = {
    
     masterESP = true,              
     boxESP = true,                
-    healthESP = true,             
+    healthESP = false,             
     nameESP = false,               
-    teamESP = false,              
+    teamESP = true,              
 }
 
 
@@ -814,3 +814,4 @@ createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
         framework.esp[Player.Name] = nil
     end
 end)
+
