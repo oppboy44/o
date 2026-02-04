@@ -39,7 +39,7 @@ local CONFIG = {
     triggerbotInvisible = true,   
     
    
-    masterESP = true,              
+    masterESP = false,              
     boxESP = true,                
     healthESP = false,             
     nameESP = false,               
@@ -810,6 +810,7 @@ createConnection("PlayerRemoving", Players.PlayerRemoving, function(Player)
         framework.esp[Player.Name] = nil
     end
 end)
+
 
 
 
